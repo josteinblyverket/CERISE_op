@@ -1,9 +1,9 @@
 #!/bin/bash -f
-#$ -N Normalization_CERISE
+#$ -N Training_patches_shuffled_CERISE
 #$ -l h_rt=24:00:00
 #$ -S /bin/bash
 #$ -pe shmem-1 1
-#$ -l h_rss=30G,mem_free=30G,h_data=30G
+#$ -l h_rss=100G,mem_free=100G,h_data=100G
 #$ -q research-r8.q
 #$ -t 1-1
 ##$ -j y
@@ -16,4 +16,4 @@
 source /modules/rhel8/conda/install/etc/profile.d/conda.sh
 conda activate production-08-2023
 
-python3 "/lustre/storeB/users/cyrilp/CERISE/Scripts_op/Normalization/Normalization_statistics.py"
+python3 "/lustre/storeB/users/cyrilp/CERISE/Scripts/Patch_CNN/Training/Training_patches_shuffled.py"

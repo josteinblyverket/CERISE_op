@@ -133,10 +133,3 @@ Stats = normalization_and_standardization_stats(dataset, list_variables)()
 write_hdf5(Stats, date_min = date_min, date_max = date_max, paths = paths)
 tf = time.time()
 print("Computing time", tf-t0)
-
-
-# In[ ]:
-
-
-
-

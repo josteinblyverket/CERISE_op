@@ -3,6 +3,7 @@ General comments
 -------------------------------------------------
 
 - There are often three scripts with the same name, but with different extensions (.ipynb, .py, .sh). The .ipynb and .py are the same scripts in jupyter notebook and Python scripts, respectively. The shell script is the script used for sending the Python script onto the PPI queues.
+- You will need to modify the shell scripts for writing the files in your own directory (check where the my username is written in the script).
 
 -------------------------------------------------
 Subdirectory "Normalization"
@@ -17,7 +18,9 @@ Subdirectory "Training data"
 -------------------------------------------------
 
 - It contains the scripts for creating the training data.
-
+	- The first script to run is "Create_training_data_domain_grid.sh". This creates training data (netCDF files) on the domain grid.
+	- Then, the script "Training_patches.sh" must be run to create training data on patches of 5 x 5 grid points (netCDF files).
+	- Then, the scripts "Training_patches_shuffled.sh" and "Validation_patches_shuffled.sh" must be run to concatenate and shuffle the order of the patches. This is to create batch containing data from different seasons in a random order (netCDF files).
 
 -------------------------------------------------
 Subdirectory "Train model and make predictions"
