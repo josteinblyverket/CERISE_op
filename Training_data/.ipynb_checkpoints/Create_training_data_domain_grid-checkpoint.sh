@@ -1,3 +1,25 @@
+#!/bin/bash -f
+#$ -N Training_data_CERISE
+#$ -l h_rt=00:01:00
+#$ -S /bin/bash
+#$ -pe shmem-1 1
+#$ -l h_rss=1G,mem_free=1G,h_data=1G
+#$ -q research-r8.q
+#$ -t 11-1005
+##$ -j y
+##$ -m ba
+#$ -o /home/cyrilp/Documents/OUT/OUT_$JOB_NAME.$JOB_ID_$TASK_ID
+#$ -e /home/cyrilp/Documents/ERR/ERR_$JOB_NAME.$JOB_ID_$TASK_ID
+##$ -R y
+##$ -r y
+
+source /modules/rhel8/conda/install/etc/profile.d/conda.sh
+conda activate production-10-2022
+
+echo "Got $NSLOTS slots for job $SGE_TASK_ID."
+
+cat > "/home/cyrilp/Documents/PROG/Training_data_CERISE_""$SGE_TASK_ID"".py" << EOF
+###################################################################################################
 #!/usr/bin/env python
 # coding: utf-8
 
@@ -20,7 +42,6 @@ import matplotlib.pyplot as plt
 # In[56]:
 
 
-SGE_TASK_ID = 1
 #
 date_min = "20200901"
 date_max = "20230602"
@@ -31,7 +52,7 @@ paths = {}
 paths["AMSR2"] = "/lustre/storeB/project/nwp/H2O/wp3/satellite_data/AMSR-2/"
 paths["surfex"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/archive/"
 paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/climate/"
-paths["output"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Training_data/"
+paths["output"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Training_data_new/"
 #
 surfex_inputgrid = paths["surfex_grid"] + "PGD.nc"
 #
@@ -278,7 +299,7 @@ def write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_dat
 
 
 list_dates = make_list_dates(date_min, date_max)
-date_task = list_dates[SGE_TASK_ID - 1] + hours_AMSR2
+date_task = list_dates[$SGE_TASK_ID - 1] + hours_AMSR2
 #
 Surfex_coord, Surfex_PGD = get_surfex_coordinates(surfex_inputgrid, surfex_PGD_variables)()
 Targets = read_AMSR2_data(date_task, paths, target_variables)
@@ -290,4 +311,6 @@ Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] > 50] = 50
 Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] < -50] = -50
 #
 write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_data)
-
+###################################################################################################
+EOF
+python3 "/home/cyrilp/Documents/PROG/Training_data_CERISE_""$SGE_TASK_ID"".py"

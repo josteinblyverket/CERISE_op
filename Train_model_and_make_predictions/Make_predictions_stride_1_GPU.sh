@@ -19,5 +19,5 @@ module load cuda/11.6.0
 source /modules/rhel8/conda/install/etc/profile.d/conda.sh
 conda activate /lustre/storeB/users/cyrilp/mycondaTF
 
-python3 "/lustre/storeB/users/cyrilp/CERISE/Scripts/Patch_CNN/Models/CNN/Make_predictions_stride_1.py"
+python3 "/lustre/storeB/users/cyrilp/CERISE/Scripts_op/Train_model_and_make_predictions/Make_predictions_stride_1.py"
 #rm /home/cyrilp/Documents/ERR/ERR_Run_UNet_COSI.* /home/cyrilp/Documents/OUT/OUT_Run_UNet_COSI.*

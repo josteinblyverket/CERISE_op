@@ -27,7 +27,7 @@ tf.keras.mixed_precision.set_global_policy("mixed_float16")
 
 
 model_name = "CNN"
-experiment = "v13_20_epochs"
+experiment = "v15_20_epochs_without_snow_min"
 stride = "1"
 #
 function_path = "/lustre/storeB/users/cyrilp/CERISE/Scripts/Patch_CNN/Models/" + model_name + "/"
@@ -65,14 +65,14 @@ list_targets = ["tb18_v", "tb36_v"]
 #
 predictors = {}
 predictors["constants"] = ["ZS", "PATCHP1", "PATCHP2", "FRAC_LAND_AND_SEA_WATER"]
-predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "WSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
+predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
 predictors["TG"] = [1, 2]
 predictors["WG"] = [1, 2]
 predictors["WGI"] = [1, 2]
 predictors["WSN_VEG"] = [1, 2]
-predictors["RSN_VEG"] = [1, 2]
-predictors["HSN_VEG"] = [1, 2]
-predictors["SNOWTEMP"] = [1, 12]
+#predictors["RSN_VEG"] = [1, 2]
+#predictors["HSN_VEG"] = [1, 2]
+#predictors["SNOWTEMP"] = [1, 12]
 predictors["SNOWLIQ"] = [1, 12]
 #
 list_predictors = predictors["constants"] + predictors["ISBA"]
