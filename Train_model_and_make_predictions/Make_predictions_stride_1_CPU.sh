@@ -4,6 +4,7 @@
 #$ -S /bin/bash
 #$ -pe shmem-1 1
 #$ -l h_rss=12G,mem_free=12G,h_data=12G
+#$ -t 1-1
 #$ -q research-r8.q
 ##$ -j y
 #$ -m ba

@@ -15,10 +15,10 @@ import tensorflow as tf
 from numpy.lib.stride_tricks import as_strided
 #
 tf.keras.mixed_precision.set_global_policy("mixed_float16")
-print("GPUs available: ", tf.config.list_physical_devices('GPU'))
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-print(physical_devices)
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
+#print("GPUs available: ", tf.config.list_physical_devices('GPU'))
+#physical_devices = tf.config.experimental.list_physical_devices('GPU')
+#print(physical_devices)
+#tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
 # # Constants
@@ -34,7 +34,7 @@ function_path = "/lustre/storeB/users/cyrilp/CERISE/Scripts/Patch_CNN/Models/" +
 sys.path.insert(0, function_path)
 from CNN import *
 #
-date_min_test = "20220901"
+date_min_test = "20230601"
 date_max_test = "20230601"
 hours_AMSR2 = "H03"
 domain_size = (250, 250)
