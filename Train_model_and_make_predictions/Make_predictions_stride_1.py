@@ -15,10 +15,10 @@ import tensorflow as tf
 from numpy.lib.stride_tricks import as_strided
 #
 tf.keras.mixed_precision.set_global_policy("mixed_float16")
-#print("GPUs available: ", tf.config.list_physical_devices('GPU'))
-#physical_devices = tf.config.experimental.list_physical_devices('GPU')
-#print(physical_devices)
-#tf.config.experimental.set_memory_growth(physical_devices[0], True)
+print("GPUs available: ", tf.config.list_physical_devices('GPU'))
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+print(physical_devices)
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
 # # Constants
@@ -65,7 +65,7 @@ list_targets = ["tb18_v", "tb36_v"]
 #
 predictors = {}
 predictors["constants"] = ["ZS", "PATCHP1", "PATCHP2", "FRAC_LAND_AND_SEA_WATER"]
-predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "WSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
+predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
 predictors["TG"] = [1, 2]
 predictors["WG"] = [1, 2]
 predictors["WGI"] = [1, 2]
@@ -83,7 +83,7 @@ for pred in predictors:
             list_predictors = list_predictors + [var_name]
 #
 model_params = {"list_predictors": list_predictors,
-                "list_targets": list_targets, 
+                "list_targets": list_targets,
                 "patch_dim": (5, 5),
                 "batch_size": 512,
                 "conv_filters": [32, 64, 128, 64],
@@ -345,7 +345,7 @@ for date_task in list_dates:
     Eval_data = extract_eval_data(date_task, list_targets, hours_AMSR2, paths)
     Pred_data = make_predictions(date_task, model, model_params, normalization_stats, paths, hours_AMSR2, domain_size, stride_prediction)()
     save_predictions_in_netCDF(date_task, Pred_data, Eval_data, list_targets, paths, stride_prediction)
-    verification(date_task, date_min_test, date_max_test, Pred_data, Eval_data, paths, experiment, stride)()
+    #verification(date_task, date_min_test, date_max_test, Pred_data, Eval_data, paths, experiment, stride)()
 #
 tf = time.time()
 print("Computing time: ", tf - t0)
