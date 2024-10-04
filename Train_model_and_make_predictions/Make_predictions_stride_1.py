@@ -34,9 +34,8 @@ function_path = "/lustre/storeB/users/cyrilp/CERISE/Scripts/Patch_CNN/Models/" +
 sys.path.insert(0, function_path)
 from CNN import *
 #
-date_min_test = "20230601"
+date_min_test = "20220901"
 date_max_test = "20230601"
-hours_AMSR2 = "H03"
 domain_size = (250, 250)
 stride_prediction = 1
 #
@@ -107,7 +106,7 @@ def make_list_dates(date_min, date_max):
     list_dates = []
     while current_date <= end_date:
         date_str = current_date.strftime("%Y%m%d")
-        filename = paths["training"] + date_str[0:4] + "/" + date_str[4:6] + "/" + "Dataset_" + date_str + hours_AMSR2 + ".nc"
+        filename = paths["training"] + date_str[0:4] + "/" + date_str[4:6] + "/" + "Dataset_" + date_str + ".nc"
         if os.path.isfile(filename):
             list_dates.append(date_str)
         current_date = current_date + datetime.timedelta(days = 1)
@@ -133,9 +132,9 @@ def load_normalization_stats(file_normalization):
 # In[16]:
 
 
-def extract_eval_data(date_task, list_targets, hours_AMSR2, paths):
+def extract_eval_data(date_task, list_targets, paths):
     Eval_data = {}
-    filename_training = paths["training"] + date_task[0:4] + "/" + date_task[4:6] + "/" + "Dataset_" + date_task + hours_AMSR2 + ".nc"
+    filename_training = paths["training"] + date_task[0:4] + "/" + date_task[4:6] + "/" + "Dataset_" + date_task + ".nc"
     nc = netCDF4.Dataset(filename_training)
     for var in list_targets:
         var_data = nc.variables[var][:,:]
@@ -155,13 +154,12 @@ def extract_eval_data(date_task, list_targets, hours_AMSR2, paths):
 
 
 class make_predictions():
-    def __init__(self, date_task, model, model_params, normalization_stats, paths, hours_AMSR2, domain_size, stride_prediction):
+    def __init__(self, date_task, model, model_params, normalization_stats, paths, domain_size, stride_prediction):
         self.date_task = date_task
         self.model = model
         self.model_params = model_params
         self.normalization_stats = normalization_stats
         self.paths = paths
-        self.hours_AMSR2 = hours_AMSR2
         self.domain_size = domain_size
         self.stride_prediction = stride_prediction
         self.patch_dim = model_params["patch_dim"][0]
@@ -176,7 +174,7 @@ class make_predictions():
     #
     def load_data_full_grid(self):
         X = np.full((1, *self.domain_size, len(self.model_params["list_predictors"])), np.nan)
-        filename = self.paths["training"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + "Dataset_" + self.date_task + self.hours_AMSR2 + ".nc"
+        filename = self.paths["training"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + "Dataset_" + self.date_task + ".nc"
         nc = netCDF4.Dataset(filename, "r")
         for v, var in enumerate(self.model_params["list_predictors"]):
             var_data = nc.variables[var][:,:]
@@ -342,8 +340,8 @@ model = CNN(**model_params).make_model()
 model.load_weights(file_model_weights)
 for date_task in list_dates:
     print(date_task)
-    Eval_data = extract_eval_data(date_task, list_targets, hours_AMSR2, paths)
-    Pred_data = make_predictions(date_task, model, model_params, normalization_stats, paths, hours_AMSR2, domain_size, stride_prediction)()
+    Eval_data = extract_eval_data(date_task, list_targets, paths)
+    Pred_data = make_predictions(date_task, model, model_params, normalization_stats, paths, domain_size, stride_prediction)()
     save_predictions_in_netCDF(date_task, Pred_data, Eval_data, list_targets, paths, stride_prediction)
     #verification(date_task, date_min_test, date_max_test, Pred_data, Eval_data, paths, experiment, stride)()
 #

@@ -45,8 +45,11 @@ Making predictions
 - 3) If the predictions are created on a CPU nodes, the following lines of codes (lines 18 - 21) must be commented in the script "/lustre/storeB/users/cyrilp/CERISE/Scripts_op/Train_model_and_make_predictions/Make_predictions_stride_1.py":
 
 #print("GPUs available: ", tf.config.list_physical_devices('GPU'))
+
 #physical_devices = tf.config.experimental.list_physical_devices('GPU')
+
 #print(physical_devices)
+
 #tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
