@@ -40,12 +40,12 @@ domain_size = (250, 250)
 stride_prediction = 1
 #
 paths = {}
-paths["base"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/"
-paths["training"] = paths["base"] + "Training_data/"
-paths["model"] = paths["base"] + "Patches/Models/" + model_name + "/" + experiment + "/"
-paths["normalization_stats"] = paths["base"] + "Normalization/"
-paths["predictions_netCDF"] = paths["base"] + "Patches/Predictions/" + model_name + "/netCDF/" + experiment + "_stride_" + stride + "/"
-paths["prediction_scores"] = paths["base"] + "Patches/Predictions/" + model_name + "/score/"
+paths["base"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
+paths["training"] = paths["base"]
+paths["model"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Patches/Models/" + model_name + "/" + experiment + "/"
+paths["normalization_stats"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Normalization/"
+paths["predictions_netCDF"] = paths["base"]
+paths["prediction_scores"] = paths["base"]
 #
 for var in paths:
     if os.path.isdir(paths[var]) == False:
@@ -94,19 +94,17 @@ model_params = {"list_predictors": list_predictors,
                 "dropout": 0,
                 }
 
-
-# # Make list dates function
-
-# In[14]:
-
-
-def make_list_dates(date_min, date_max):
+def make_list_dates(date_min, date_max, mbr):
     current_date = datetime.datetime.strptime(date_min, "%Y%m%d")
     end_date = datetime.datetime.strptime(date_max, "%Y%m%d")
+    print(current_date)
+    print(end_date)
+    
     list_dates = []
     while current_date <= end_date:
         date_str = current_date.strftime("%Y%m%d")
-        filename = paths["training"] + date_str[0:4] + "/" + date_str[4:6] + "/" + "Dataset_" + date_str + ".nc"
+        filename = paths["training"] + date_str[0:4] + "/" + date_str[4:6] + "/" + "/" + date_str[6:8] + "/" + date_str[9:11] + "03/" + "%s"%mbr + "/" + "Dataset_" + date_str + "H03.nc"
+        print(filename)
         if os.path.isfile(filename):
             list_dates.append(date_str)
         current_date = current_date + datetime.timedelta(days = 1)
@@ -129,12 +127,9 @@ def load_normalization_stats(file_normalization):
 
 # # Extract evaluation data
 
-# In[16]:
-
-
-def extract_eval_data(date_task, list_targets, paths):
+def extract_eval_data(date_task, list_targets, paths, mbr):
     Eval_data = {}
-    filename_training = paths["training"] + date_task[0:4] + "/" + date_task[4:6] + "/" + "Dataset_" + date_task + ".nc"
+    filename_training = paths["training"] + date_task[0:4] + "/" + date_task[4:6] + "/" + date_task[6:8] + "/" + "/03/" + "%s"%mbr + "/" +  "Dataset_" + date_task + "H03.nc"
     nc = netCDF4.Dataset(filename_training)
     for var in list_targets:
         var_data = nc.variables[var][:,:]
@@ -154,7 +149,7 @@ def extract_eval_data(date_task, list_targets, paths):
 
 
 class make_predictions():
-    def __init__(self, date_task, model, model_params, normalization_stats, paths, domain_size, stride_prediction):
+    def __init__(self, date_task, model, model_params, normalization_stats, paths, domain_size, stride_prediction, mbr):
         self.date_task = date_task
         self.model = model
         self.model_params = model_params
@@ -163,6 +158,7 @@ class make_predictions():
         self.domain_size = domain_size
         self.stride_prediction = stride_prediction
         self.patch_dim = model_params["patch_dim"][0]
+        self.mbr = mbr
     #
     def normalize(self, var, var_data):
         norm_var_data = (var_data - self.normalization_stats[var + "_min"]) / (self.normalization_stats[var + "_max"] - self.normalization_stats[var + "_min"])
@@ -174,7 +170,7 @@ class make_predictions():
     #
     def load_data_full_grid(self):
         X = np.full((1, *self.domain_size, len(self.model_params["list_predictors"])), np.nan)
-        filename = self.paths["training"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + "Dataset_" + self.date_task + ".nc"
+        filename = self.paths["training"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + self.date_task[6:8] + "/03/" + "%s"%self.mbr + "/" + "Dataset_" + self.date_task + "H03.nc"
         nc = netCDF4.Dataset(filename, "r")
         for v, var in enumerate(self.model_params["list_predictors"]):
             var_data = nc.variables[var][:,:]
@@ -249,8 +245,9 @@ class make_predictions():
 # In[18]:
 
 
-def save_predictions_in_netCDF(date_task, Pred_data, Eval_data, list_targets, paths, stride_prediction):
-    file_output = paths["predictions_netCDF"] + "Predictions_" + date_task + ".nc"
+def save_predictions_in_netCDF(date_task, Pred_data, Eval_data, list_targets, paths, stride_prediction, mbr):
+    file_output = paths["predictions_netCDF"] + date_task[0:4] + "/" + date_task[4:6] + "/" + date_task[6:8] + "/" + "03/" + "%s"%mbr + "/" +  "Predictions_" + date_task + ".nc"
+    print("Writing to ", file_output)
     output_netcdf = netCDF4.Dataset(file_output, "w", format = "NETCDF4")
     Outputs = vars()
     #
@@ -333,16 +330,24 @@ class verification():
 
 
 t0 = time.time()
+
+mbrs = ["000", "001","002","003","004","005","006","007","008", "009"]
 #
-list_dates = make_list_dates(date_min_test, date_max_test)
+
+for mbr in mbrs:
+    list_dates = make_list_dates(date_min_test, date_max_test, mbr)
+
+print(list_dates)
+
 normalization_stats = load_normalization_stats(file_normalization)
 model = CNN(**model_params).make_model()
 model.load_weights(file_model_weights)
 for date_task in list_dates:
     print(date_task)
-    Eval_data = extract_eval_data(date_task, list_targets, paths)
-    Pred_data = make_predictions(date_task, model, model_params, normalization_stats, paths, domain_size, stride_prediction)()
-    save_predictions_in_netCDF(date_task, Pred_data, Eval_data, list_targets, paths, stride_prediction)
+    for mbr in mbrs:
+        Eval_data = extract_eval_data(date_task, list_targets, paths, mbr)
+        Pred_data = make_predictions(date_task, model, model_params, normalization_stats, paths, domain_size, stride_prediction, mbr)()
+        save_predictions_in_netCDF(date_task, Pred_data, Eval_data, list_targets, paths, stride_prediction, mbr)
     #verification(date_task, date_min_test, date_max_test, Pred_data, Eval_data, paths, experiment, stride)()
 #
 tf = time.time()

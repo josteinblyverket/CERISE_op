@@ -19,41 +19,9 @@ import matplotlib.pyplot as plt
 
 # In[56]:
 
-
-SGE_TASK_ID = 1
-#
-date_min = "20200901"
-date_max = "20230602"
-#
-hours_AMSR2 = "H03"
-#
-paths = {}
-paths["AMSR2"] = "/lustre/storeB/project/nwp/H2O/wp3/satellite_data/AMSR-2/"
-paths["surfex"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/archive/"
-paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/climate/"
-paths["output"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Training_data/"
-#
-surfex_inputgrid = paths["surfex_grid"] + "PGD.nc"
-#
-target_variables = ["tb6_h", "tb6_v", "tb7_h", "tb7_v", "tb10_h", "tb10_v", "tb18_h", "tb18_v", "tb23_h", "tb23_v", "tb36_h", "tb36_v"]
-#
-surfex_PGD_variables = ["ZS", "COVER004", "COVER006"]
-surfex_prognostic_variables = ["FRAC_WATER", "FRAC_NATURE", "FRAC_SEA"]
-surfex_surface_and_integrated_variables = ["Q2M_ISBA", "T2M_ISBA", "TS_ISBA", "DSN_T_ISBA", "LAI_ga", "PSN_ISBA", "PSNG_ISBA", "PSNV_ISBA"]
-predictor_variables = surfex_prognostic_variables + surfex_surface_and_integrated_variables
-#
-n_soil_layers = 12
-surfex_soil_variables = ["TG", "WSN_VEG", "WG", "WGI", "RSN_VEG", "SNOWTEMP", "SNOWLIQ", "HSN_VEG"] 
-#
-for var in surfex_soil_variables:
-    for layer in range(1, n_soil_layers + 1):
-        predictor_variables.append(var + str(layer) + "_ga")
-
-
 # # Get surfex coordinates
 
 # In[57]:
-
 
 class get_surfex_coordinates():
     def __init__(self, surfex_inputgrid, surfex_PGD_variables):
@@ -112,9 +80,6 @@ class get_surfex_coordinates():
 
 # # List dates
 
-# In[58]:
-
-
 def make_list_dates(date_min, date_max):
     current_date = datetime.datetime.strptime(date_min, "%Y%m%d")
     end_date = datetime.datetime.strptime(date_max, "%Y%m%d")
@@ -147,19 +112,18 @@ def read_AMSR2_data(date_task, paths, target_variables):
     nc.close()
     return(AMSR2_data)
 
-
 # # Read SURFEX data
 
 # In[60]:
 
-
-def read_surfex_data(date_task, paths, predictor_variables):
+def read_surfex_data(date_task, paths, predictor_variables, mbr):
     Surfex_data = {}
-    filename_constants = paths["surfex"] + "2023/01/01/00/SURFOUT.20230101_03h00.nc"
+    
+    filename_constants = paths["surfex"] + "2022/07/02/00/SURFOUT.20220702_03h00.nc"
     previous_hours = "{:02d}".format(int(date_task[9:11]) - 3)
     path_task = paths["surfex"] + date_task[0:4] + "/" + date_task[4:6] + "/" + date_task[6:8] + "/" +  previous_hours + "/"
     print("SURFOUT." + date_task[0:8] + "_" + date_task[9:11] + "h00.nc")
-    nc = netCDF4.Dataset(path_task + "SURFOUT." + date_task[0:8] + "_" + date_task[9:11] + "h00.nc", "r")
+    nc = netCDF4.Dataset(path_task + "%s"%mbr + "/" + "SURFOUT." + date_task[0:8] + "_" + date_task[9:11] + "h00.nc", "r")
     #
     Surfex_coord = {}
     for var in ["XX", "YY"]:
@@ -178,24 +142,49 @@ def read_surfex_data(date_task, paths, predictor_variables):
                 Surfex_coord["y"] = var_data[:,0]
             nc_constants.close()
     #
-    for var in ["PATCHP1", "PATCHP2"]:
-        if var in nc.variables:
-            var_data = nc.variables[var][:,:]
-            var_data[var_data.mask == True] = 0
-            Surfex_data[var] = np.expand_dims(var_data, axis = 0)
-        else:
-            nc_constants = netCDF4.Dataset(filename_constants)
-            var_data = nc_constants.variables[var][:,:]
-            var_data[var_data.mask == True] = 0
-            Surfex_data[var] = np.expand_dims(var_data, axis = 0)
-            nc_constants.close()
+    #for var in ["PATCHP1", "PATCHP2"]:
+    #    if var in nc.variables:
+    #        var_data = nc.variables[var][:,:]
+    #        var_data[var_data.mask == True] = 0
+    #        Surfex_data[var] = np.expand_dims(var_data, axis = 0)
+    #    else:
+    #        nc_constants = netCDF4.Dataset(filename_constants)
+    #        var_data = nc_constants.variables[var][:,:]
+    #        var_data[var_data.mask == True] = 0
+    #        Surfex_data[var] = np.expand_dims(var_data, axis = 0)
+    #        nc_constants.close()
     #
+    for var in ["PATCHP1", "PATCHP2"]:
+     if var in nc.variables:            
+         if var == "PATCHP1":                
+             var_data = nc.variables["PATCH"][0,:,:]
+         elif var == "PATCH":            
+             var_data = nc.variables["PATCH"][1,:,:]
+         var_data[var_data.mask == True] = 0  
+         Surfex_data[var] = np.expand_dims(var_data, axis = 0)
+     else:            
+          nc_constants = netCDF4.Dataset(filename_constants)
+          if var == "PATCHP1":                
+              var_data = nc_constants.variables["PATCH"][0,:,:]
+          elif var == "PATCHP2":            
+              var_data = nc_constants.variables["PATCH"][1,:,:]
+          #var_data = nc_constants.variables[var][i,:,:]
+          var_data[var_data.mask == True] = 0
+          Surfex_data[var] = np.expand_dims(var_data, axis = 0)
+          nc_constants.close()
+       
+
     for var in predictor_variables:
-        try:
-            if (var in nc.variables) or (var.replace("_ga", "P1") in nc.variables):
-                if "_ga" in var:
-                    var_data_P1 = nc.variables[var.replace("_ga", "P1")][:,:]
-                    var_data_P2 = nc.variables[var.replace("_ga", "P2")][:,:]
+        #try:
+            #if (var in nc.variables) or (var.replace("_ga", "P1") in nc.variables):
+                #if "_ga" in var:
+                    #var_data_P1 = nc.variables[var.replace("_ga", "P1")][:,:]
+                    #var_data_P2 = nc.variables[var.replace("_ga", "P2")][:,:]
+            if (var in nc.variables) or (var.replace("_ga", "") in nc.variables):
+                if "_ga" in var:                    
+                    var_data_P1 = nc.variables[var.replace("_ga", "")][0,:,:] #nc.variables[var.replace("_ga", "P1")][0,:,:]
+                    var_data_P2 = nc.variables[var.replace("_ga", "")][1,:,:] #nc.variables[var.replace("_ga", "P2")][1,:,:]
+
                     var_data_P1 = np.expand_dims(var_data_P1, axis = 0)
                     var_data_P2 = np.expand_dims(var_data_P2, axis = 0)
                     Surfex_data[var] = np.nansum([Surfex_data["PATCHP1"] * var_data_P1, Surfex_data["PATCHP2"] * var_data_P2], axis = 0)
@@ -206,10 +195,15 @@ def read_surfex_data(date_task, paths, predictor_variables):
                     Surfex_data[var] = nc.variables[var][:,:]
             else:
                 #print("prognostic variable: ", var)
-                ncp = netCDF4.Dataset(path_task + "SURFOUT.nc")
-                if "_ga" in var:
-                    var_data_P1 = ncp.variables[var.replace("_ga", "P1")][:,:]
-                    var_data_P2 = ncp.variables[var.replace("_ga", "P2")][:,:]
+                #ncp = netCDF4.Dataset(path_task + "SURFOUT.nc")
+                #if "_ga" in var:
+                #    var_data_P1 = ncp.variables[var.replace("_ga", "P1")][:,:]
+                #    var_data_P2 = ncp.variables[var.replace("_ga", "P2")][:,:]
+                ncp = netCDF4.Dataset(path_task + "SURFOUT.nc")                
+                if "_ga" in var:                    
+                    print(var)                 
+                    var_data_P1 = ncp.variables[var.replace("_ga", "")][0,:,:]
+                    var_data_P2 = ncp.variables[var.replace("_ga", "")][1,:,:]
                     var_data_P1 = np.expand_dims(var_data_P1, axis = 0)
                     var_data_P2 = np.expand_dims(var_data_P2, axis = 0)
                     Surfex_data[var] = np.nansum([Surfex_data["PATCHP1"] * var_data_P1, Surfex_data["PATCHP2"] * var_data_P2], axis = 0)
@@ -219,19 +213,18 @@ def read_surfex_data(date_task, paths, predictor_variables):
                 else:
                     Surfex_data[var] = ncp.variables[var][:,:]
                 ncp.close()
-        except:
-            print("Variable not found: " + var)
-            if (var == "SNOWTEMP9_ga") or (var == "SNOWLIQ9_ga"):
-                pass
-            else:
-                sys.exit()
-    #
+        #except:
+        #    print("Variable not found: " + var)
+        #    if (var == "SNOWTEMP9_ga") or (var == "SNOWLIQ9_ga"):
+        #        pass
+        #    else:
+        #        sys.exit()
+        #
     nc.close()
     return(Surfex_data)
 
 
 # In[61]:
-
 
 def calculate_WSN_T_ISBA(Surfex_data, n_soil_layers):
     WSN_T_ISBA = np.zeros(np.shape(Surfex_data["WSN_VEG1_ga"]))
@@ -245,8 +238,8 @@ def calculate_WSN_T_ISBA(Surfex_data, n_soil_layers):
 # In[62]:
 
 
-def write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_data):
-    path_output = paths["output"] + date_task[0:4] + "/" + date_task[4:6] + "/"
+def write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_data, mbr):
+    path_output = paths["output"] + date_task[0:4] + "/" + date_task[4:6] + "/" + date_task[6:8] + "/" + date_task[9:11] + "/" + "%s"%mbr + "/"
     if os.path.exists(path_output) == False:
         os.system("mkdir -p " + path_output)    
     output_filename = path_output + "Dataset_" + date_task + ".nc"
@@ -274,20 +267,58 @@ def write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_dat
 
 # # Data processing 
 
-# In[63]:
 
+if __name__ == "__main__":
 
-list_dates = make_list_dates(date_min, date_max)
-date_task = list_dates[SGE_TASK_ID - 1] + hours_AMSR2
+    SGE_TASK_ID = 1
 #
-Surfex_coord, Surfex_PGD = get_surfex_coordinates(surfex_inputgrid, surfex_PGD_variables)()
-Targets = read_AMSR2_data(date_task, paths, target_variables)
-Surfex_data = read_surfex_data(date_task, paths, predictor_variables)
-Surfex_data["WSN_T_ISBA"] = calculate_WSN_T_ISBA(Surfex_data, n_soil_layers)
-Surfex_data["FRAC_LAND_AND_SEA_WATER"] = Surfex_data["FRAC_WATER"] + Surfex_data["FRAC_SEA"] 
-Surfex_data["SNOW_GRADIENT"] = (Surfex_data["SNOWTEMP12_ga"] - Surfex_data["SNOWTEMP1_ga"]) / Surfex_data["DSN_T_ISBA"]
-Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] > 50] = 50
-Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] < -50] = -50
+    date_min = "20220707"
+    date_max = "20220707"
 #
-write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_data)
+    hours_AMSR2 = "H03"
+#
+    paths = {}
+    paths["AMSR2"] = "/lustre/storeB/project/nwp/H2O/wp3/satellite_data/AMSR-2/"
+    paths["surfex"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
+    paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/climate/"
+    paths["output"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
+    
+    surfex_inputgrid = paths["surfex_grid"] + "PGD.nc"
+    
+    target_variables = ["tb6_h", "tb6_v", "tb7_h", "tb7_v", "tb10_h", "tb10_v", "tb18_h", "tb18_v", "tb23_h", "tb23_v", "tb36_h", "tb36_v"]
+    
+    surfex_PGD_variables = ["ZS", "COVER004", "COVER006"]
+    surfex_prognostic_variables = ["FRAC_WATER", "FRAC_NATURE", "FRAC_SEA"]
+    surfex_surface_and_integrated_variables = ["Q2M_ISBA", "T2M_ISBA", "TS_ISBA", "DSN_T_ISBA", "LAI_ga", "PSN_ISBA", "PSNG_ISBA", "PSNV_ISBA"]
+    predictor_variables = surfex_prognostic_variables + surfex_surface_and_integrated_variables
+    
+    n_soil_layers = 12
+    surfex_soil_variables = ["TG", "WSN_VEG", "WG", "WGI", "RSN_VEG", "SNOWTEMP", "SNOWLIQ", "HSN_VEG"] 
+    
+    for var in surfex_soil_variables:
+        for layer in range(1, n_soil_layers + 1):
+            predictor_variables.append(var + str(layer) + "_ga")
+
+    list_dates = make_list_dates(date_min, date_max)
+    date_task = list_dates[SGE_TASK_ID - 1] + hours_AMSR2
+
+    #print(date_task)
+    #print(list_dates)
+    #exit()
+    Targets = read_AMSR2_data(date_task, paths, target_variables)
+
+    mbrs = ["000", "001","002","003","004","005","006","007","008", "009"]
+
+    for mbr in mbrs:
+        
+        Surfex_coord, Surfex_PGD = get_surfex_coordinates(surfex_inputgrid, surfex_PGD_variables)()
+        Surfex_data = read_surfex_data(date_task, paths, predictor_variables, mbr)
+
+        Surfex_data["WSN_T_ISBA"] = calculate_WSN_T_ISBA(Surfex_data, n_soil_layers)
+        Surfex_data["FRAC_LAND_AND_SEA_WATER"] = Surfex_data["FRAC_WATER"] + Surfex_data["FRAC_SEA"] 
+        Surfex_data["SNOW_GRADIENT"] = (Surfex_data["SNOWTEMP12_ga"] - Surfex_data["SNOWTEMP1_ga"]) / Surfex_data["DSN_T_ISBA"]
+        Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] > 50] = 50
+        Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] < -50] = -50
+    
+        write_netcdf(date_task, paths, Surfex_coord, Surfex_PGD, Targets, Surfex_data, mbr)
 
