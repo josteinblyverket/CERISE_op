@@ -1,0 +1,31 @@
+AMSR2_frequency: 18.7
+weight_initializer: he_normal
+shuffle: False
+batch_normalization: True
+attention_heads: 4
+batch_size: 512
+date_min_train: 20200901
+date_max_train: 20220531
+date_min_valid: 20220901
+date_max_valid: 20230531
+subsampling: 1
+loss_function MSELoss()
+initial_learning_rate 0.0025
+step_size 5
+gamma 0.5
+n_epochs 30
+list_predictors: ZS, PATCHP1, PATCHP2, FRAC_LAND_AND_SEA_WATER, Distance_to_footprint_center, lwe_thickness_of_atmosphere_mass_content_of_water_vapor, LAI_ga, DSN_T_ISBA, WSN_T_ISBA, TG1_ga, TG2_ga, WG1_ga, WG2_ga, WGI1_ga, WGI2_ga, RSN_VEG1_ga, RSN_VEG6_ga, RSN_VEG12_ga, HSN_VEG1_ga, HSN_VEG6_ga, HSN_VEG12_ga, SNOWTEMP1_ga, SNOWTEMP6_ga, SNOWTEMP12_ga, SNOWLIQ1_ga, SNOWLIQ6_ga, SNOWLIQ12_ga, 
+INFO:root:GNN_GAT(
+  (activation): ReLU()
+  (conv_1): GATConv(27, 8, heads=4)
+  (conv_2): GATConv(32, 16, heads=4)
+  (conv_3): GATConv(64, 8, heads=4)
+  (batch_norm_conv_1): BatchNorm1d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (batch_norm_conv_2): BatchNorm1d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (batch_norm_conv_3): BatchNorm1d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (dense_1): Linear(in_features=32, out_features=16, bias=True)
+  (dense_2): Linear(in_features=16, out_features=8, bias=True)
+  (batch_norm_dense_1): BatchNorm1d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (batch_norm_dense_2): BatchNorm1d(8, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (fc): Linear(in_features=8, out_features=2, bias=True)
+)
