@@ -61,6 +61,12 @@ Footprint CNN
 GNN static
 -------------------------------------------------
 	-------------------------------------------------
+	Subdirectory "GNN_static/Models/"
+	-------------------------------------------------
+        - One static graph neural network model is available "GNN_model_18GHz.pth"
+        - The details of this model are stored in the file "Model_details_18.7GHz_20250303.txt"
+        - The training statitics are stored in the file "Training_statistics_18GHz_20250303.txt"
+	-------------------------------------------------
 	Subdirectory "GNN_static/Training_data/"
 	-------------------------------------------------
         - It contains the scripts for creating the training data and for creating the files to make predictions
