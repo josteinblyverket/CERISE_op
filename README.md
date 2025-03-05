@@ -16,6 +16,12 @@ Subdirectory "Normalization"
 	- Check_hdf_normalization_file.ipynb can be used for checking the standardization statistics.
 
 -------------------------------------------------
+Subdirectory "Normalization data"
+-------------------------------------------------
+
+- It contains the hdf file with the normalization statistics that are used for training a new model and for making predictions.
+
+-------------------------------------------------
 Footprint CNN
 -------------------------------------------------
 	-------------------------------------------------
