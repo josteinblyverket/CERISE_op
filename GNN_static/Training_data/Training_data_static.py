@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[40]:
-
 
 import os
 import time
@@ -17,58 +15,6 @@ import numpy as np
 #
 import matplotlib.pyplot as plt
 
-
-# # Constants
-
-# In[41]:
-
-
-SGE_TASK_ID = 1
-#
-date_min = "20200901"
-date_max = "20230602"
-#
-AMSR2_task_frequency = "18.7"
-AMSR2_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
-AMSR2_footprint_radius = [0.25 * (35 + 62), 0.25 * (35 + 62), 0.25 * (24 + 42), 0.25 * (14 + 22), 0.25 * (11 + 19), 0.25 * (7 + 12)]  # 0.5 * mean diameter (0.5 * (major + minor))
-#
-paths = {}
-paths["AMSR2"] = "/lustre/storeB/immutable/archive/projects/remotesensing/satellite/"
-paths["MEPS"] = "/lustre/storeB/immutable/archive/projects/metproduction/meps/"
-paths["surfex"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/archive/"
-paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/climate/"
-paths["output"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Training_data_GNN/" + AMSR2_task_frequency.split('.')[0] + "GHz_static/"
-#
-hours_AMSR2 = "H03"
-MEPS_leadtime = int(hours_AMSR2[2])
-#
-crs = {}
-crs["latlon"] = pyproj.CRS.from_proj4("+proj=latlon")
-#
-MEPS_spatial_resolution = 2500
-MEPS_dim_variables = ["time", "pressure", "x", "y", "longitude", "latitude"]
-MEPS_LWE_thickness = ["lwe_thickness_of_atmosphere_mass_content_of_water_vapor"]
-MEPS_clouds = ["mass_fraction_of_cloud_condensed_water_in_air_pl", "mass_fraction_of_cloud_ice_in_air_pl", ]
-MEPS_precip = ["mass_fraction_of_snow_in_air_pl", "mass_fraction_of_rain_in_air_pl", "mass_fraction_of_graupel_in_air_pl"]
-MEPS_specific_humidity = ["specific_humidity_pl"]
-MEPS_PL_variables = MEPS_LWE_thickness + MEPS_clouds + MEPS_precip + MEPS_specific_humidity
-#
-surfex_PGD_variables = ["ZS", "COVER004", "COVER006"]
-surfex_prognostic_variables = ["FRAC_WATER", "FRAC_NATURE", "FRAC_SEA"]
-surfex_surface_and_integrated_variables = ["Q2M_ISBA", "T2M_ISBA", "TS_ISBA", "DSN_T_ISBA", "LAI_ga", "PSN_ISBA", "PSNG_ISBA", "PSNV_ISBA"]
-predictor_variables = surfex_prognostic_variables + surfex_surface_and_integrated_variables
-#
-n_soil_layers = 2
-n_snow_layers = 12
-surfex_soil_variables = ["TG", "WSN_VEG", "WG", "WGI", "RSN_VEG", "SNOWTEMP", "SNOWLIQ", "HSN_VEG"] 
-#
-for var in surfex_soil_variables:
-    if ("SNOW" in var) or ("_VEG" in var):
-        for layer in range(1, n_snow_layers + 1):
-            predictor_variables.append(var + str(layer) + "_ga")
-    else:
-        for layer in range(1, n_soil_layers + 1):
-            predictor_variables.append(var + str(layer) + "_ga")
 
 
 # # List dates
@@ -148,30 +94,40 @@ class get_surfex_coordinates():
 # In[44]:
 
 
-def read_surfex_data(date_task_hours_AMSR2, paths, predictor_variables):
+def read_surfex_data(date_task_hours_AMSR2, paths, predictor_variables, mbr):
     Surfex_data = {}
-    filename_constants = paths["surfex"] + "2023/01/01/00/SURFOUT.20230101_03h00.nc"
+    filename_constants = paths["surfex"] + "2022/07/03/00/000/SURFOUT.20220703_03h00.nc"
     previous_hours = "{:02d}".format(int(date_task_hours_AMSR2[9:11]) - 3)
     path_task = paths["surfex"] + date_task_hours_AMSR2[0:4] + "/" + date_task_hours_AMSR2[4:6] + "/" + date_task_hours_AMSR2[6:8] + "/" +  previous_hours + "/"
     #
-    with netCDF4.Dataset(path_task + "SURFOUT." + date_task_hours_AMSR2[0:8] + "_" + date_task_hours_AMSR2[9:11] + "h00.nc", "r") as nc:
+    with netCDF4.Dataset(path_task + "%s"%mbr + "/" + "SURFOUT." + date_task_hours_AMSR2[0:8] + "_" + date_task_hours_AMSR2[9:11] + "h00.nc", "r") as nc:
         for var in ["PATCHP1", "PATCHP2"]:
             if var in nc.variables:
-                var_data = np.flipud(nc.variables[var][:,:])
+                if var == "PATCHP1":
+                    var_data = np.flipud(nc.variables["PATCH"][0,:,:])
+                elif var == "PATCHP2":
+                    var_data = np.flipud(nc.variables["PATCH"][1,:,:])
+                
                 var_data[var_data.mask == True] = 0
                 Surfex_data[var] = np.expand_dims(var_data, axis = 0)
             else:
                 with netCDF4.Dataset(filename_constants, "r") as nc_constants:
-                    var_data = np.flipud(nc_constants.variables[var][:,:])
+                    if var == "PATCHP1":
+                        var_data = np.flipud(nc_constants.variables["PATCH"][0,:,:])
+                    elif var == "PATCHP2":
+                        var_data = np.flipud(nc_constants.variables["PATCH"][1,:,:])
+
+                    #var_data = np.flipud(nc_constants.variables[var][:,:])
                     var_data[var_data.mask == True] = 0
                     Surfex_data[var] = np.expand_dims(var_data, axis = 0)
         #
         for var in predictor_variables:
-            try:
-                if (var in nc.variables) or (var.replace("_ga", "P1") in nc.variables):
+            #try:
+                if (var in nc.variables) or (var.replace("_ga", "") in nc.variables):
                     if "_ga" in var:
-                        var_data_P1 = np.flipud(nc.variables[var.replace("_ga", "P1")][:,:])
-                        var_data_P2 = np.flipud(nc.variables[var.replace("_ga", "P2")][:,:])
+                        var_data_P1 = np.flipud(nc.variables[var.replace("_ga", "")][0,:,:])
+                        var_data_P2 = np.flipud(nc.variables[var.replace("_ga", "")][0,:,:])
+
                         var_data_P1 = np.expand_dims(var_data_P1, axis = 0)
                         var_data_P2 = np.expand_dims(var_data_P2, axis = 0)
                         Surfex_data[var] = np.nansum([Surfex_data["PATCHP1"] * var_data_P1, Surfex_data["PATCHP2"] * var_data_P2], axis = 0)
@@ -183,8 +139,8 @@ def read_surfex_data(date_task_hours_AMSR2, paths, predictor_variables):
                 else:
                     with netCDF4.Dataset(path_task + "SURFOUT.nc", "r") as ncp:
                         if "_ga" in var:
-                            var_data_P1 = np.flipud(ncp.variables[var.replace("_ga", "P1")][:,:])
-                            var_data_P2 = np.flipud(ncp.variables[var.replace("_ga", "P2")][:,:])
+                            var_data_P1 = np.flipud(ncp.variables[var.replace("_ga", "")][0,:,:])
+                            var_data_P2 = np.flipud(ncp.variables[var.replace("_ga", "")][1,:,:])
                             var_data_P1 = np.expand_dims(var_data_P1, axis = 0)
                             var_data_P2 = np.expand_dims(var_data_P2, axis = 0)
                             Surfex_data[var] = np.nansum([Surfex_data["PATCHP1"] * var_data_P1, Surfex_data["PATCHP2"] * var_data_P2], axis = 0)
@@ -193,18 +149,17 @@ def read_surfex_data(date_task_hours_AMSR2, paths, predictor_variables):
                             Surfex_data[var][np.logical_and(var_data_P1.mask == True, var_data_P2.mask == True)] = np.nan
                         else:
                             Surfex_data[var] = np.flipud(ncp.variables[var][:,:])
-            except:
-                print("Variable not found: " + var)
-                if (var == "SNOWTEMP9_ga") or (var == "SNOWLIQ9_ga"):
-                    pass
-                else:
-                    sys.exit()
-    #
+            #except:
+            #    print("Variable not found: " + var)
+            #    if (var == "SNOWTEMP9_ga") or (var == "SNOWLIQ9_ga"):
+            #        pass
+            #    else:
+            #        sys.exit()
+    #    
     return(Surfex_data)
 
 
 # In[45]:
-
 
 def calculate_WSN_T_ISBA(Surfex_data, n_soil_layers):
     WSN_T_ISBA = np.zeros(np.shape(Surfex_data["WSN_VEG1_ga"]))
@@ -212,7 +167,6 @@ def calculate_WSN_T_ISBA(Surfex_data, n_soil_layers):
         WSN_T_ISBA = WSN_T_ISBA + Surfex_data["WSN_VEG" + str(layer + 1) + "_ga"]
     WSN_T_ISBA[WSN_T_ISBA > 1e10] = np.nan
     return(WSN_T_ISBA)
-
 
 # # Get MEPS variables
 
@@ -460,8 +414,9 @@ class extract_graphs():
                             Graphs["AMSR2_" + var] = np.concatenate((Graphs["AMSR2_" + var], np.expand_dims(AMSR2_surfex_domain[var][i], axis = 0)), axis = 0)
         return(Graphs)    
     #
-    def write_graphs(self, Graphs):
-        path_output = self.paths["output"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/"
+    def write_graphs(self, Graphs, mbr):
+        path_output = self.paths["output"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + date_task[6:8] + "/" + date_task[9:11] + "/" + "03" + "/" + "%s"%mbr + "/"
+        print(path_output)
         if os.path.exists(path_output) == False:
             os.system("mkdir -p " + path_output) 
         filename = path_output + "Graphs_" + self.date_task + ".h5"
@@ -487,47 +442,103 @@ class extract_graphs():
                     print(filename)
                     Distances_to_footprint_center =  self.calculate_distances(AMSR2_surfex_domain)
                     Graphs = self.get_graph_data(Distances_to_footprint_center, AMSR2_surfex_domain)
-                    self.write_graphs(Graphs)
+                    self.write_graphs(Graphs, mbr)
 
 
 # # Data processing
 
 # In[49]:
 
+if __name__ == "__main__":
 
-t0 = time.time()
-#
-list_dates = make_list_dates(date_min, date_max)
-date_task = list_dates[SGE_TASK_ID - 1]
-date_task_hours_AMSR2 = date_task + hours_AMSR2
-AMSR2_task_radius = AMSR2_footprint_radius[AMSR2_frequencies.index(AMSR2_task_frequency)]
-static_dimension = int(2 * 1000 * AMSR2_task_radius / (np.sqrt(MEPS_spatial_resolution ** 2 + MEPS_spatial_resolution ** 2))) ** 2
-print(date_task)
-print(str(AMSR2_task_radius) + " km")
-#
-Surfex_coord, Surfex_PGD = get_surfex_coordinates(crs, surfex_PGD_variables, paths)()
-Surfex_data = read_surfex_data(date_task_hours_AMSR2, paths, predictor_variables)
-Surfex_data["WSN_T_ISBA"] = calculate_WSN_T_ISBA(Surfex_data, n_soil_layers)
-Surfex_data["FRAC_LAND_AND_SEA_WATER"] = Surfex_data["FRAC_WATER"] + Surfex_data["FRAC_SEA"] 
-Surfex_data["SNOW_GRADIENT"] = (Surfex_data["SNOWTEMP12_ga"] - Surfex_data["SNOWTEMP1_ga"]) / Surfex_data["DSN_T_ISBA"]
-Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] > 50] = 50
-Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] < -50] = -50
-for var in Surfex_PGD:
-    Surfex_data[var] = Surfex_PGD[var]
-#
-MEPS_data = get_MEPS_data(date_task, MEPS_leadtime, MEPS_dim_variables, MEPS_PL_variables, Surfex_coord, crs, paths)()
-#
-extract_graphs(date_task = date_task, 
-               paths = paths, 
-               AMSR2_task_frequency = AMSR2_task_frequency, 
-               static_dimension = static_dimension,
-               crs = crs,
-               Surfex_coord = Surfex_coord, 
-               Surfex_data = Surfex_data,
-               MEPS_data = MEPS_data)()
-#
-tf = time.time()
-print("Computing time: ", tf - t0)
+    
+    # # Constants
+    
+    SGE_TASK_ID = 1
+    #
+    date_min = "20220704"
+    date_max = "20220705"
+    #
+    AMSR2_task_frequency = "18.7"
+    AMSR2_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
+    AMSR2_footprint_radius = [0.25 * (35 + 62), 0.25 * (35 + 62), 0.25 * (24 + 42), 0.25 * (14 + 22), 0.25 * (11 + 19), 0.25 * (7 + 12)]  # 0.5 * mean diameter (0.5 * (major + minor))
+    #
+    paths = {}
+    paths["AMSR2"] = "/lustre/storeB/immutable/archive/projects/remotesensing/satellite/"
+    paths["MEPS"] = "/lustre/storeB/immutable/archive/projects/metproduction/meps/"
+    paths["surfex"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
+    paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/climate/"
+    paths["output"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/" #+ AMSR2_task_frequency.split('.')[0] + "GHz_static/"
+    #
+    hours_AMSR2 = "H03"
+    MEPS_leadtime = int(hours_AMSR2[2])
+    #
+    crs = {}
+    crs["latlon"] = pyproj.CRS.from_proj4("+proj=latlon")
+    #
+    MEPS_spatial_resolution = 2500
+    MEPS_dim_variables = ["time", "pressure", "x", "y", "longitude", "latitude"]
+    MEPS_LWE_thickness = ["lwe_thickness_of_atmosphere_mass_content_of_water_vapor"]
+    MEPS_clouds = ["mass_fraction_of_cloud_condensed_water_in_air_pl", "mass_fraction_of_cloud_ice_in_air_pl", ]
+    MEPS_precip = ["mass_fraction_of_snow_in_air_pl", "mass_fraction_of_rain_in_air_pl", "mass_fraction_of_graupel_in_air_pl"]
+    MEPS_specific_humidity = ["specific_humidity_pl"]
+    MEPS_PL_variables = MEPS_LWE_thickness + MEPS_clouds + MEPS_precip + MEPS_specific_humidity
+    #
+    surfex_PGD_variables = ["ZS", "COVER004", "COVER006"]
+    surfex_prognostic_variables = ["FRAC_WATER", "FRAC_NATURE", "FRAC_SEA"]
+    surfex_surface_and_integrated_variables = ["Q2M_ISBA", "T2M_ISBA", "TS_ISBA", "DSN_T_ISBA", "LAI_ga", "PSN_ISBA", "PSNG_ISBA", "PSNV_ISBA"]
+    predictor_variables = surfex_prognostic_variables + surfex_surface_and_integrated_variables
+    #
+    n_soil_layers = 2
+    n_snow_layers = 12
+    surfex_soil_variables = ["TG", "WSN_VEG", "WG", "WGI", "RSN_VEG", "SNOWTEMP", "SNOWLIQ", "HSN_VEG"] 
+    #
+    for var in surfex_soil_variables:
+        if ("SNOW" in var) or ("_VEG" in var):
+            for layer in range(1, n_snow_layers + 1):
+                predictor_variables.append(var + str(layer) + "_ga")
+        else:
+            for layer in range(1, n_soil_layers + 1):
+                predictor_variables.append(var + str(layer) + "_ga")
+
+    t0 = time.time()
+    #
+    list_dates = make_list_dates(date_min, date_max)
+    date_task = list_dates[SGE_TASK_ID - 1]
+    date_task_hours_AMSR2 = date_task + hours_AMSR2
+    AMSR2_task_radius = AMSR2_footprint_radius[AMSR2_frequencies.index(AMSR2_task_frequency)]
+    static_dimension = int(2 * 1000 * AMSR2_task_radius / (np.sqrt(MEPS_spatial_resolution ** 2 + MEPS_spatial_resolution ** 2))) ** 2
+    print(date_task)
+    print(str(AMSR2_task_radius) + " km")
+    #
+    Surfex_coord, Surfex_PGD = get_surfex_coordinates(crs, surfex_PGD_variables, paths)()
+
+    mbrs = ["003"]#, "001"]#,"002","003","004","005","006","007","008", "009"]
+
+    MEPS_data = get_MEPS_data(date_task, MEPS_leadtime, MEPS_dim_variables, MEPS_PL_variables, Surfex_coord, crs, paths)()        
+
+    for mbr in mbrs:
+
+        Surfex_data = read_surfex_data(date_task_hours_AMSR2, paths, predictor_variables, mbr)
+        Surfex_data["WSN_T_ISBA"] = calculate_WSN_T_ISBA(Surfex_data, n_soil_layers)
+        Surfex_data["FRAC_LAND_AND_SEA_WATER"] = Surfex_data["FRAC_WATER"] + Surfex_data["FRAC_SEA"] 
+        Surfex_data["SNOW_GRADIENT"] = (Surfex_data["SNOWTEMP12_ga"] - Surfex_data["SNOWTEMP1_ga"]) / Surfex_data["DSN_T_ISBA"]
+        Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] > 50] = 50
+        Surfex_data["SNOW_GRADIENT"][Surfex_data["SNOW_GRADIENT"] < -50] = -50
+        for var in Surfex_PGD:
+            Surfex_data[var] = Surfex_PGD[var]
+        
+        extract_graphs(date_task = date_task, 
+                       paths = paths, 
+                       AMSR2_task_frequency = AMSR2_task_frequency, 
+                       static_dimension = static_dimension,
+                       crs = crs,
+                       Surfex_coord = Surfex_coord, 
+                       Surfex_data = Surfex_data,
+                       MEPS_data = MEPS_data)()
+    #
+    tf = time.time()
+    print("Computing time: ", tf - t0)
 
 
 # In[ ]:

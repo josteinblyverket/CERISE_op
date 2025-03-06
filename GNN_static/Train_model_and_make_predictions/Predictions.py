@@ -34,17 +34,17 @@ print("Using device: "  + str(device))
 experiment_name = "v6"
 AMSR2_frequency = "18.7"
 #
-function_path = "/lustre/storeA/users/cyrilp/CERISE/Models_static/" + experiment_name + "/"
+function_path = "/lustre/storeB/users/josteinbl/MLP/GNN_data/v1/"
 sys.path.insert(0, function_path)
 from Data_generator_GNN_prediction import *
 from GNN_GAT import *
 #
 paths = {}
-paths["training"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Training_data_GNN/" + AMSR2_frequency.split('.')[0] + "GHz_static/"
+paths["training"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
 paths["normalization"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Normalization/"
 paths["model"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/GNN/Models_static/" + experiment_name + "/"
-paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR/climate/"
-paths["output"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/GNN/Models_static/" + experiment_name + "/Predictions_" + AMSR2_frequency.split('.')[0] + "GHz/"
+paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/climate/"
+paths["output"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/" #+ "/Predictions_" + AMSR2_frequency.split('.')[0] + "GHz/"
 #
 filename_normalization = paths["normalization"] + "Stats_normalization_20200901_20220531.h5"
 #
@@ -56,14 +56,10 @@ AMSR2_all_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
 AMSR2_all_footprint_radius = np.array([35 + 62, 35 + 62, 24 + 42, 14 + 22, 11 + 19, 7 + 12]) * 0.25 * 1000  # 0.5 * mean diameter (0.5 * (major + minor)), *1000 => km to meters
 AMSR2_footprint_radius = AMSR2_all_footprint_radius[AMSR2_all_frequencies.index(AMSR2_frequency)]
 
-
 # # Model parameters
 
-# In[4]:
-
-
-date_min = "20220901"
-date_max = "20230531"
+date_min = "20220704"
+date_max = "20220705"
 subsampling = "1"
 #
 def he_normal_init(weight):
@@ -93,8 +89,6 @@ predictors["SNOWLIQ"] = [1, 6, 12]
 
 
 # # List dates
-
-# In[5]:
 
 
 def make_list_dates(date_min, date_max):
@@ -147,7 +141,6 @@ class get_surfex_coordinates():
 
 # # Make model parameters
 
-# In[7]:
 
 
 class make_model_parameters():
@@ -213,7 +206,7 @@ class make_loader():
         self.normalization_stats = normalization_stats
         self.date_task = date_task
         self.paths = paths
-        self.filename_data = self.paths["training"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + "Graphs_" + self.date_task + ".h5"
+        self.filename_data = self.paths["training"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + date_task[6:8] + "/" + "03" + "/" + "001" + "/" + "Graphs_" + self.date_task + ".h5"
     #
     def Number_of_samples_and_footprint_coordinates(self):
         Graphs_coord = {}
@@ -347,7 +340,7 @@ class gridding_predictions():
         return(Gridded_predictions, Gridded_targets, Gridded_distance)
     #
     def write_netCDF(self, Gridded_predictions, Gridded_targets, Gridded_distance):
-        path_output = self.paths["output"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/"
+        path_output = self.paths["output"] + self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + date_task[6:8] + "/" + "03" + "/" + "001" + "/"
         if os.path.exists(path_output) == False:
             os.system("mkdir -p " + path_output)
         output_filename = path_output + "Predictions_" + self.date_task + ".nc"
@@ -419,7 +412,7 @@ normalization_stats, model_params = make_model_parameters(AMSR2_frequency = AMSR
 #
 list_dates = make_list_dates(date_min, date_max)
 for date_task in list_dates:
-    try:
+    #try:
         Number_of_graphs, Graphs_coord, Targets, valid_loader = make_loader(AMSR2_frequency = AMSR2_frequency,
                                                                             AMSR2_footprint_radius = AMSR2_footprint_radius, 
                                                                             list_predictors = model_params["list_predictors"], 
@@ -451,8 +444,8 @@ for date_task in list_dates:
                             Graphs_coord = Graphs_coord, 
                             predictions = predictions, 
                             paths = paths)()
-    except:
-       pass
+    #except:
+    #   pass
 #
 ttf = time.time()
 print("Total computing time: ", ttf - tt0)
