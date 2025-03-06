@@ -449,9 +449,9 @@ class extract_graphs():
 
 # In[49]:
 
-if __name__ == "__main__":
 
-    
+def main():
+
     # # Constants
     
     SGE_TASK_ID = 1
@@ -539,6 +539,11 @@ if __name__ == "__main__":
     #
     tf = time.time()
     print("Computing time: ", tf - t0)
+
+
+if __name__ == "__main__":
+
+    main()    
 
 
 # In[ ]:

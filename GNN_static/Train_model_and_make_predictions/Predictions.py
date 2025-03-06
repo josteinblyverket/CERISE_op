@@ -18,6 +18,8 @@ import torchsummary
 import torch_geometric
 import numpy as np
 
+from Data_generator_GNN_prediction import *
+from GNN_GAT import *
 
 # In[2]:
 
@@ -29,64 +31,6 @@ print("Using device: "  + str(device))
 # # Constants
 
 # In[3]:
-
-
-experiment_name = "v6"
-AMSR2_frequency = "18.7"
-#
-function_path = "/lustre/storeB/users/josteinbl/MLP/GNN_data/v1/"
-sys.path.insert(0, function_path)
-from Data_generator_GNN_prediction import *
-from GNN_GAT import *
-#
-paths = {}
-paths["training"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
-paths["normalization"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Normalization/"
-paths["model"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/GNN/Models_static/" + experiment_name + "/"
-paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/climate/"
-paths["output"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/" #+ "/Predictions_" + AMSR2_frequency.split('.')[0] + "GHz/"
-#
-filename_normalization = paths["normalization"] + "Stats_normalization_20200901_20220531.h5"
-#
-for var in paths:
-    if os.path.isdir(paths[var]) == False:
-        os.system("mkdir -p " + paths[var])
-#
-AMSR2_all_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
-AMSR2_all_footprint_radius = np.array([35 + 62, 35 + 62, 24 + 42, 14 + 22, 11 + 19, 7 + 12]) * 0.25 * 1000  # 0.5 * mean diameter (0.5 * (major + minor)), *1000 => km to meters
-AMSR2_footprint_radius = AMSR2_all_footprint_radius[AMSR2_all_frequencies.index(AMSR2_frequency)]
-
-# # Model parameters
-
-date_min = "20220704"
-date_max = "20220705"
-subsampling = "1"
-#
-def he_normal_init(weight):
-    torch.nn.init.kaiming_normal_(weight, mode = "fan_out", nonlinearity = "relu")
-weight_initializer = he_normal_init
-#
-activation = torch.nn.ReLU()
-shuffle = True
-conv_filers = [32, 64, 32]
-batch_size = 512
-batch_normalization = True
-attention_heads = 4
-#
-predictors = {}
-predictors["constants"] = ["ZS", "PATCHP1", "PATCHP2", "FRAC_LAND_AND_SEA_WATER", "Distance_to_footprint_center"]
-predictors["atmosphere"] = ["lwe_thickness_of_atmosphere_mass_content_of_water_vapor"]
-#predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
-predictors["ISBA"] = ["LAI_ga", "DSN_T_ISBA", "WSN_T_ISBA"]
-predictors["TG"] = [1, 2]
-predictors["WG"] = [1, 2]
-predictors["WGI"] = [1, 2]
-#predictors["WSN_VEG"] = [1, 6, 12]
-predictors["RSN_VEG"] = [1, 6, 12]
-predictors["HSN_VEG"] = [1, 6, 12]
-predictors["SNOWTEMP"] = [1, 6, 12]
-predictors["SNOWLIQ"] = [1, 6, 12]
-
 
 # # List dates
 
@@ -450,3 +394,64 @@ for date_task in list_dates:
 ttf = time.time()
 print("Total computing time: ", ttf - tt0)
 
+def main():
+
+
+    experiment_name = "v6"
+    AMSR2_frequency = "18.7"
+    #
+    #function_path = "/lustre/storeB/users/josteinbl/MLP/GNN_data/v1/"
+    #sys.path.insert(0, function_path)    
+    #
+    paths = {}
+    paths["training"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/"
+    paths["normalization"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Normalization/"
+    paths["model"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/GNN/Models_static/" + experiment_name + "/"
+    paths["surfex_grid"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/climate/"
+    paths["output"] = "/lustre/storeB/users/josteinbl/sfx_data/LDAS_NOR_LETKF/archive/" #+ "/Predictions_" + AMSR2_frequency.split('.')[0] + "GHz/"
+    #
+    filename_normalization = paths["normalization"] + "Stats_normalization_20200901_20220531.h5"
+    #
+    for var in paths:
+        if os.path.isdir(paths[var]) == False:
+            os.system("mkdir -p " + paths[var])
+    #
+    AMSR2_all_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
+    AMSR2_all_footprint_radius = np.array([35 + 62, 35 + 62, 24 + 42, 14 + 22, 11 + 19, 7 + 12]) * 0.25 * 1000  # 0.5 * mean diameter (0.5 * (major + minor)), *1000 => km to meters
+    AMSR2_footprint_radius = AMSR2_all_footprint_radius[AMSR2_all_frequencies.index(AMSR2_frequency)]
+
+    # # Model parameters
+
+    date_min = "20220704"
+    date_max = "20220705"
+    subsampling = "1"
+    #
+    def he_normal_init(weight):
+        torch.nn.init.kaiming_normal_(weight, mode = "fan_out", nonlinearity = "relu")
+    weight_initializer = he_normal_init
+    #
+    activation = torch.nn.ReLU()
+    shuffle = True
+    conv_filers = [32, 64, 32]
+    batch_size = 512
+    batch_normalization = True
+    attention_heads = 4
+    #
+    predictors = {}
+    predictors["constants"] = ["ZS", "PATCHP1", "PATCHP2", "FRAC_LAND_AND_SEA_WATER", "Distance_to_footprint_center"]
+    predictors["atmosphere"] = ["lwe_thickness_of_atmosphere_mass_content_of_water_vapor"]
+    #predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
+    predictors["ISBA"] = ["LAI_ga", "DSN_T_ISBA", "WSN_T_ISBA"]
+    predictors["TG"] = [1, 2]
+    predictors["WG"] = [1, 2]
+    predictors["WGI"] = [1, 2]
+    #predictors["WSN_VEG"] = [1, 6, 12]
+    predictors["RSN_VEG"] = [1, 6, 12]
+    predictors["HSN_VEG"] = [1, 6, 12]
+    predictors["SNOWTEMP"] = [1, 6, 12]
+    predictors["SNOWLIQ"] = [1, 6, 12]
+
+
+if __name__ == "__main__":
+
+    main()
