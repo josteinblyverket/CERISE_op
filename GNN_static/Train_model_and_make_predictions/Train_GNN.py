@@ -17,10 +17,7 @@ import torch
 import torchsummary
 import torch_geometric
 import numpy as np
-
-
-# In[126]:
-
+from torch.cuda.amp import GradScaler
 
 t0 = time.time()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Check if a GPU is available
@@ -29,26 +26,23 @@ print(torch.cuda.is_available())
 print(torch.version.cuda)
 print(torch.backends.cudnn.enabled)
 
-
 # # Constants
 
-# In[ ]:
-
-
-experiment_name = "v6"
+experiment_name = "v01"
 AMSR2_frequency = "18.7"
 #
-function_path = "/lustre/storeB/users/cyrilp/CERISE/Scripts/GNN/Model_static/" + experiment_name + "/"
-sys.path.insert(0, function_path)
+#function_path = "/lustre/storeB/users/cyrilp/CERISE/Scripts/GNN/Model_static/" + experiment_name + "/"
+#sys.path.insert(0, function_path)
 from Data_generator_GNN import *
 from GNN_GAT import *
 #
 paths = {}
-paths["training"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Training_data_GNN/" + AMSR2_frequency.split('.')[0] + "GHz_static/"
-paths["normalization"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/Normalization/"
-paths["output"] = "/lustre/storeB/project/nwp/H2O/wp3/Deep_learning_predictions/GNN/Models_static/" + experiment_name + "/"
+paths["training"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/" + AMSR2_frequency.split('.')[0] + "GHz_static/" + "pan-Arctic/Graphs_conc/"
+#paths["normalization"] = "/ec/res4/scratch/sbjb/Projects/CERISE/GNN/"
+paths["normalization"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/18GHz_static/pan-Arctic/Normalization/"
+paths["output"] = "/ec/res4/scratch/sbjb/Projects/CERISE/GNN/pan-Arctic/" + experiment_name + "/"
 #
-filename_normalization = paths["normalization"] + "Stats_normalization_20200901_20220531.h5"
+filename_normalization = paths["normalization"] + "Stats_normalization_patch_fix_20141001_20141101.h5"
 #
 for var in paths:
     if os.path.isdir(paths[var]) == False:
@@ -58,16 +52,12 @@ AMSR2_all_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
 AMSR2_all_footprint_radius = np.array([35 + 62, 35 + 62, 24 + 42, 14 + 22, 11 + 19, 7 + 12]) * 0.25 * 1000  # 0.5 * mean diameter (0.5 * (major + minor)), *1000 => km to meters
 AMSR2_footprint_radius = AMSR2_all_footprint_radius[AMSR2_all_frequencies.index(AMSR2_frequency)]
 
-
 # # Model parameters
 
-# In[ ]:
-
-
-date_min_train = "20200901"
-date_max_train = "20220531"
-date_min_valid = "20220901"
-date_max_valid = "20230531"
+date_min_train = "20141001"
+date_max_train = "20141101"
+date_min_valid = "20141001"
+date_max_valid = "20141101"
 subsampling = "1"
 #
 def he_normal_init(weight):
@@ -84,8 +74,9 @@ attention_heads = 4
 #
 predictors = {}
 predictors["constants"] = ["ZS", "PATCHP1", "PATCHP2", "FRAC_LAND_AND_SEA_WATER", "Distance_to_footprint_center"]
-predictors["atmosphere"] = ["lwe_thickness_of_atmosphere_mass_content_of_water_vapor"]
+predictors["atmosphere"] = []
 #predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "PSN_ISBA"]
+#predictors["ISBA"] = ["DSN_T_ISBA", "LAI_ga", "TS_ISBA","WSN_T_ISBA"]
 predictors["ISBA"] = ["LAI_ga", "DSN_T_ISBA", "WSN_T_ISBA"]
 predictors["TG"] = [1, 2]
 predictors["WG"] = [1, 2]
@@ -96,24 +87,17 @@ predictors["HSN_VEG"] = [1, 6, 12]
 predictors["SNOWTEMP"] = [1, 6, 12]
 predictors["SNOWLIQ"] = [1, 6, 12]
 
-
 # # Training parameters
-
-# In[ ]:
-
 
 compile_params = {"loss_function": torch.nn.MSELoss(),    # Loss function
                   "initial_learning_rate": 0.0025,        # Initial learning rate
                   "step_size": 5,                         # Define how many epochs are computed before the learning rate is decreased.
                   "gamma": 0.5,                           # Define the factor used to decrease the learning rate. If 0.25, the learning rate is divided by 4.
-                  "n_epochs": 30,                         # Number of epochs used for training the model
+                  "n_epochs": 15,                         # Number of epochs used for training the model
                   }
 
 
 # # Save model details
-
-# In[ ]:
-
 
 def save_model_details(model, paths, weight_initializer_str, shuffle, batch_normalization, attention_heads, batch_size, compile_params, predictors, AMSR2_frequency, date_min_train, date_max_train, date_min_valid, date_max_valid, subsampling):
     filename = paths["output"] + "Model_details_" + AMSR2_frequency + "GHz_" + datetime.datetime.now().strftime("%Y%m%d") + ".txt"
@@ -155,9 +139,6 @@ def save_model_details(model, paths, weight_initializer_str, shuffle, batch_norm
 
 # # Make model parameters
 
-# In[ ]:
-
-
 class make_parameters():
     def __init__(self, paths, filename_normalization, AMSR2_frequency, AMSR2_footprint_radius, predictors, activation, weight_initializer, conv_filters, batch_size, batch_normalization, attention_heads, shuffle, date_min_train, date_max_train, date_min_valid, date_max_valid, subsampling):
         self.paths = paths
@@ -177,8 +158,8 @@ class make_parameters():
         self.date_min_valid = date_min_valid
         self.date_max_valid = date_max_valid
         self.subsampling = subsampling
-        self.filename_train = self.paths["training"] + "Graphs_" + self.date_min_train + "_" + self.date_max_train + "_subsampling_" + self.subsampling + ".zarr"
-        self.filename_valid = self.paths["training"] + "Graphs_" + self.date_min_valid + "_" + self.date_max_valid + "_subsampling_" + self.subsampling + ".zarr"
+        self.filename_train = self.paths["training"] + "Graphs_" + self.date_min_train + "_" + self.date_max_train + "_subsampling_patch_fix_" + self.subsampling + ".zarr"
+        self.filename_valid = self.paths["training"] + "Graphs_" + self.date_min_valid + "_" + self.date_max_valid + "_val_subsampling_patch_fix_" + self.subsampling + ".zarr"
     #
     def make_list_predictors(self):
         list_predictors = predictors["constants"] + predictors["atmosphere"] + predictors["ISBA"]
@@ -223,8 +204,9 @@ class make_parameters():
     #
     def create_data_loader(self, data_generator_params):
         dataset = Data_generator_GNN(**data_generator_params)
-        #data_loader = torch_geometric.loader.DataLoader(dataset, batch_size = 1, shuffle = self.shuffle)
+        #data_loader = torch_geometric.loader.DataLoader(dataset, batch_size = 1, num_workers=4, pin_memory=True)
         return(dataset)
+        
     #
     def __call__(self):
         list_predictors = self.make_list_predictors()
@@ -256,7 +238,7 @@ class train_model():
         self.filename_training_stats = paths["output"] + "Training_statistics_" + self.AMSR2_frequency.split('.')[0] + "GHz_" + datetime.datetime.now().strftime("%Y%m%d") + ".txt"
         self.filename_model = paths["output"] + "GNN_model_" + self.AMSR2_frequency.split('.')[0] + "GHz.pth"
         self.loss_function = compile_params["loss_function"]
-        self.optimizer =  torch.optim.Adam(self.model.parameters(), lr = self.compile_params["initial_learning_rate"])
+        self.optimizer =  torch.optim.Adam(self.model.parameters(), lr = self.compile_params["initial_learning_rate"])        
         self.scheduler = self.learning_rate_scheduler()
     #
     def learning_rate_scheduler(self): 
@@ -297,7 +279,7 @@ class train_model():
     #
     def training_loop(self):
         best_valid_loss = float("inf")
-        scaler = torch.amp.GradScaler()
+        scaler = GradScaler()
         #
         for epoch in range(0, self.compile_params["n_epochs"]):
             print("epoch", epoch)
@@ -392,6 +374,7 @@ model_params, train_loader, valid_loader =  make_parameters(paths = paths,
 #
 GNN_model = GNN_GAT(**model_params).to(device)
 #
+
 save_model_details(model = GNN_model, 
                    paths = paths, 
                    weight_initializer_str = weight_initializer_str, 

@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
-
 
 import time
 import zarr
@@ -11,9 +9,6 @@ import random
 import torch
 import torch_geometric
 import numpy as np
-
-
-# In[ ]:
 
 
 class Data_generator_GNN(torch.utils.data.Dataset):
@@ -52,17 +47,22 @@ class Data_generator_GNN(torch.utils.data.Dataset):
 
         x_chunk = np.stack([self.zarr_dataset[pred][start_id:end_id, :] for pred in self.list_predictors], axis=-1)
         y_chunk = np.stack([self.zarr_dataset[targ][start_id:end_id] for targ in self.list_targets], axis=-1)
-        adj_chunk = self.zarr_dataset["Distance_matrix"][start_id:end_id]
+        #adj_chunk = self.zarr_dataset["Distance_matrix"][start_id:end_id]
 
-        x_chunk = np.nan_to_num(x_chunk, nan=0.0)
+        #x_chunk = np.nan_to_num(x_chunk, nan=0.0)
         for i, pred in enumerate(self.list_predictors):
             x_chunk[:, :, i] = self.normalize(pred, x_chunk[:, :, i])
 
-        y_chunk = np.nan_to_num(y_chunk, nan=0.0)
+        x_chunk = np.nan_to_num(x_chunk, nan=0.0)
+
+        #y_chunk = np.nan_to_num(y_chunk, nan=0.0)
         for i, targ in enumerate(self.list_targets):
             y_chunk[:, i] = self.normalize(targ, y_chunk[:, i])
 
-        adj_matrix = self.normalize("Distance_matrix", adj_chunk)
+        y_chunk = np.nan_to_num(y_chunk, nan=0.0)
+
+        #adj_matrix = self.normalize("Distance_matrix", adj_chunk)
+        adj_matrix = np.ones((self.batch_size, n_nodes, n_nodes))
 
         batch_data = []
         for i in range(self.batch_size):

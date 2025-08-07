@@ -18,7 +18,7 @@ import torch_geometric
 import numpy as np
 import pandas as pd
 
-from Data_generator_GNN_prediction import *
+from Data_generator_GNN_prediction_opt import *
 from GNN_GAT import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Check if a GPU is available
@@ -42,13 +42,34 @@ class get_surfex_coordinates():
     def __init__(self, paths):
         self.inputgrid = paths["surfex_grid"] + "PGD.nc"
     #
+    #def sfx2areadef(self, lat0, lon0, latori, lonori, xx, yy):
+    #    proj2 = "+proj=lcc +lat_1=%.2f +lat_2=%.2f +lat_0=%.2f +lon_0=%.2f +units=m +ellps=WGS84 +no_defs" % (lat0,lat0,lat0,lon0)
+    #    p2 = pyproj.Proj(proj2, preserve_units = False)
+    #    origo = p2(lonori.data, latori.data)
+    #    extent = origo + (origo[0] + xx[-1,-1], origo[1] + yy[-1,-1])
+    #    area_def = pyresample.geometry.AreaDefinition("id2", "hei2", "lcc", proj2, xx.shape[1], yy.shape[0], extent)
+    #    return(area_def)
+    
     def sfx2areadef(self, lat0, lon0, latori, lonori, xx, yy):
-        proj2 = "+proj=lcc +lat_1=%.2f +lat_2=%.2f +lat_0=%.2f +lon_0=%.2f +units=m +ellps=WGS84 +no_defs" % (lat0,lat0,lat0,lon0)
+        """ Setup areadefinition from surfex projection parameters """
+        proj_type = "lcc" if lat0 < 90 else "stere"
+        proj2 = {
+            "proj": proj_type,
+            "lat_0": lat0,
+            "lon_0": lon0,
+            "ellps": "WGS84",
+            "no_defs": True,
+            "units": "m"
+        }
+        if lat0 < 90:
+            proj2["lat_1"] = lat0
+            proj2["lat_2"] = lat0
         p2 = pyproj.Proj(proj2, preserve_units = False)
         origo = p2(lonori.data, latori.data)
         extent = origo + (origo[0] + xx[-1,-1], origo[1] + yy[-1,-1])
-        area_def = pyresample.geometry.AreaDefinition("id2", "hei2", "lcc", proj2, xx.shape[1], yy.shape[0], extent)
-        return(area_def)
+        area_def = pyresample.geometry.AreaDefinition("0", "model grid", proj_type, proj2, xx.shape[1], yy.shape[0], extent)
+        
+        return(area_def)    
     #
     def getSFXgrid(self):
         with netCDF4.Dataset(self.inputgrid, "r") as nc:
@@ -125,39 +146,44 @@ class make_model_parameters():
 # Make loader
 
 class make_loader():
-    def __init__(self, AMSR2_frequency, AMSR2_footprint_radius, list_predictors, normalization_stats, date_task, paths):
+
+    def __init__(self, AMSR2_frequency, AMSR2_footprint_radius, list_predictors, normalization_stats, date_task, paths, mbr, n_nodes, batch_size=512):
         self.AMSR2_frequency = AMSR2_frequency
         self.AMSR2_footprint_radius = AMSR2_footprint_radius 
         self.list_predictors = list_predictors
         self.normalization_stats = normalization_stats
         self.date_task = date_task
         self.paths = paths
-        self.filename_data = self.paths["training"] + "Graphs_" + self.date_task + ".h5"
-    #
+        self.mbr = mbr        
+        self.filename_data = self.paths["training"] + "Graphs_" + self.AMSR2_frequency.replace(".","_") + "_" + self.date_task + ".h5"
+        #self.filename_data = self.paths["training"] + "Graphs_" + self.date_task + ".h5"
+        self.n_nodes = n_nodes
+        self.batch_size = batch_size
+        
+    
     def Number_of_samples_and_footprint_coordinates(self):
         Graphs_coord = {}
         Targets = {}
         #
         with h5py.File(self.filename_data, "r") as hdf:
             Number_of_graphs = len(hdf["AMSR2_xx"][()])
-            #
-            Graphs_coord["xx"] = np.full(Number_of_graphs, np.nan)
-            Graphs_coord["yy"] = np.full(Number_of_graphs, np.nan)
-            Targets["AMSR2_BT" + self.AMSR2_frequency + "H"] = np.full(Number_of_graphs, np.nan)
-            Targets["AMSR2_BT" + self.AMSR2_frequency + "V"] = np.full(Number_of_graphs, np.nan)
-            #
             Graphs_coord["xx"] = hdf["AMSR2_xx"][()]
             Graphs_coord["yy"] = hdf["AMSR2_yy"][()]
-            Targets["AMSR2_BT" + self.AMSR2_frequency + "H"] = hdf["AMSR2_BT" + self.AMSR2_frequency + "H"][()]
-            Targets["AMSR2_BT" + self.AMSR2_frequency + "V"] = hdf["AMSR2_BT" + self.AMSR2_frequency + "V"][()]
-            #
+            Graphs_coord["lat"] = hdf["AMSR2_lat"][()]
+            Graphs_coord["lon"] = hdf["AMSR2_lon"][()]
+            
+            Targets["AMSR2_BT" + self.AMSR2_frequency + "H"] = hdf["AMSR2_BT" + self.AMSR2_frequency + "H"][()].astype("float32")
+            Targets["AMSR2_BT" + self.AMSR2_frequency + "V"] = hdf["AMSR2_BT" + self.AMSR2_frequency + "V"][()].astype("float32")
+            
             return(Number_of_graphs, Graphs_coord, Targets)
     #
     def make_data_generator_parameters(self, filename_data):
         data_generator_params = {"filename_data": filename_data,
                                  "footprint_radius": self.AMSR2_footprint_radius,
                                  "list_predictors": self.list_predictors,
-                                 "normalization_stats": self.normalization_stats}
+                                 "normalization_stats": self.normalization_stats,
+                                 "n_nodes": self.n_nodes,
+                                 "batch_size": self.batch_size}
         return(data_generator_params)
     #
     def create_data_loader(self, Number_of_graphs, data_generator_params):
@@ -169,7 +195,6 @@ class make_loader():
         params_valid = self.make_data_generator_parameters(self.filename_data)
         valid_loader = self.create_data_loader(Number_of_graphs, params_valid)
         return(Number_of_graphs, Graphs_coord, Targets, valid_loader)
-
 
 # # Make predictions
 
@@ -190,18 +215,29 @@ class make_predictions():
     #
     def predictions(self):
         self.model.eval()
-        print(len(self.valid_loader))
+        print("len loader", len(self.valid_loader))
+        k = 0
+        unorm_pred_list = []
+        #print("type", type(self.valid_loader[0])) 
         with torch.no_grad(), torch.amp.autocast(device_type = "cuda"):
-            for batch_valid in self.valid_loader:
+            for i in range(len(self.valid_loader)):
+                batch_valid = self.valid_loader[i]
+                print("prediction_loop:", k)
+                k+=1
                 data_batch = batch_valid.to(self.device)
-                x, y, a, batch = data_batch.x, data_batch.y, data_batch.edge_index, data_batch.batch
-                print("x,y,a", np.shape(x))
-                unnormalized_predictions = self.model(x, a, batch)        
-                print("unnormalized predictions")
-        unnormalized_predictions = unnormalized_predictions.cpu().numpy()            
-        print("to numpy")         
-        return(unnormalized_predictions)
-    #
+                #print("#3", psutil.Process().memory_info().rss/1024**3)
+                #x, y, a, batch = data_batch.x, data_batch.y, data_batch.edge_index, data_batch.batch
+                #print("x,y,a", np.shape(x))
+                unnormalized_predictions = self.model(data_batch.x, data_batch.edge_index, data_batch.batch)
+                #unnormalized_predictions = self.model(x, a, batch)
+                #print(unnormalized_predictions)
+                unorm_pred_list += [unnormalized_predictions.cpu().detach().numpy()]
+                
+        for l in unorm_pred_list:
+            print(l.shape)
+        return np.vstack(unorm_pred_list)
+        
+    
     def __call__(self):
         unnormalized_predictions = self.predictions()
         normalized_predictions = self.unnormalize(unnormalized_predictions)
@@ -210,7 +246,8 @@ class make_predictions():
 #  # Gridding predictions
 
 class gridding_predictions():
-    def __init__(self, date_task, AMSR2_footprint_radius, Surfex_coord, list_targets, Targets, Graphs_coord, predictions, paths):
+
+    def __init__(self, date_task, AMSR2_footprint_radius, Surfex_coord, list_targets, Targets, Graphs_coord, predictions, paths, mbr):
         self.date_task = date_task
         self.AMSR2_footprint_radius = AMSR2_footprint_radius 
         self.Surfex_coord = Surfex_coord
@@ -224,6 +261,7 @@ class gridding_predictions():
         self.Graphs_yy = Graphs_coord["yy"][self.idx_nan == False]        
         self.predictions = predictions                
         self.paths = paths
+        self.mbr = mbr
     #
     def nearest_neighbor_indexes(self):
         pred_xx = np.expand_dims(self.Graphs_xx, axis = 1)
@@ -258,7 +296,7 @@ class gridding_predictions():
         return(Gridded_predictions, Gridded_targets, Gridded_distance)
     #
     def write_netCDF(self, Gridded_predictions, Gridded_targets, Gridded_distance):
-        path_output = self.paths["output"] #+ self.date_task[0:4] + "/" + self.date_task[4:6] + "/" + self.date_task[6:8] + "/" + "03" + "/" + "000" + "/"
+        path_output = self.paths["output"]
         if os.path.exists(path_output) == False:
             os.system("mkdir -p " + path_output)
         output_filename = path_output + "Predictions_" + self.date_task + ".nc"
@@ -311,36 +349,40 @@ class gridding_predictions():
 
 def main():
 
-    experiment_name = "v17_ppi"
-    AMSR2_frequency = "36.5"
+    experiment_name = "v17"
+    AMSR2_frequency = "18.7"
+    sub_exp = ""
     #
     #function_path = "/lustre/storeB/users/josteinbl/MLP/GNN_data/v1/"
     #sys.path.insert(0, function_path)    
     #
     paths = {}
     #paths["training"] = "/ec/res4/scratch/nor3005/sfx_data/CARRA_Land_Pv1_v2/archive/"
-    paths["training"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/36GHz_static/Tuning_data/"
+    paths["training"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/18GHz_static/pan-Arctic/Graphs/"
     #paths["normalization"] = "/ec/res4/scratch/sbjb/Projects/CERISE/GNN/"
-    paths["normalization"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/36GHz_static/Training/"
+    paths["normalization"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/18GHz_static/Training/"
     paths["model"] = "/ec/res4/scratch/sbjb/Projects/CERISE/GNN/" + experiment_name + "/"
-    paths["surfex_grid"] = "/ec/res4/scratch/sbjb/sfx_data/CERISE_Land_Pv2_dev01/climate/"
-    paths["output"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/36GHz_static/predictions/" + experiment_name + "/" #+ "/Predictions_" + AMSR2_frequency.split('.')[0] + "GHz/"
+    paths["surfex_grid"] = "/ec/res4/scratch/nor3005/sfx_data/CARRA_Land_open_loop/climate/"
+    paths["output"] = "/ec/res4/scratch/sbjb/Projects/CERISE/ObsOpData/GNN/18GHz_static/pan-Arctic/Predictions/"+ experiment_name + "/" + sub_exp + "/" #+ "/Predictions_" + AMSR2_frequency.split('.')[0] + "GHz/"
     #
-    filename_normalization = paths["normalization"] + "Stats_normalization_20170602_20180501.h5" #"Stats_normalization_20200901_20230531.h5"
+    filename_normalization = paths["normalization"] + "Stats_normalization_patch_fix_20170602_20180601.h5" #"Stats_normalization_20200901_20230531.h5"
     #
     for var in paths:
         if os.path.isdir(paths[var]) == False:
             os.system("mkdir -p " + paths[var])
     #
     AMSR2_all_frequencies = ["6.9", "7.3", "10.7", "18.7", "23.8", "36.5"]
+    AMSR2_all_nodes = [None, None, 81, 25, None, 4]
+
     AMSR2_all_footprint_radius = np.array([35 + 62, 35 + 62, 24 + 42, 14 + 22, 11 + 19, 7 + 12]) * 0.25 * 1000  # 0.5 * mean diameter (0.5 * (major + minor)), *1000 => km to meters
     AMSR2_footprint_radius = AMSR2_all_footprint_radius[AMSR2_all_frequencies.index(AMSR2_frequency)]
 
-    # # Model parameters
+    n_nodes = AMSR2_all_nodes[AMSR2_all_frequencies.index(AMSR2_frequency)]    
     
-    date_min = "20170502"
-    date_max = "20180501"
-    subsampling = "1"
+    #date_min = "20160703"
+    #date_max = "20160810"
+    #subsampling = "1"
+    mbr = "000"
     #
     def he_normal_init(weight):
         torch.nn.init.kaiming_normal_(weight, mode = "fan_out", nonlinearity = "relu")
@@ -349,15 +391,16 @@ def main():
     activation = torch.nn.ReLU()
     shuffle = True
     conv_filers = [32, 64, 32]
-    batch_size = 512
+    batch_size = 2048
     batch_normalization = True
     attention_heads = 4
     #
     predictors = {}
     predictors["constants"] = ["ZS", "PATCHP1", "PATCHP2", "FRAC_LAND_AND_SEA_WATER", "Distance_to_footprint_center"]
     predictors["atmosphere"] = []
-    predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "WSN_T_ISBA"]
-    #predictors["ISBA"] = ["LAI_ga", "DSN_T_ISBA", "WSN_T_ISBA"]
+    #predictors["ISBA"] = ["Q2M_ISBA", "DSN_T_ISBA", "LAI_ga", "TS_ISBA", "WSN_T_ISBA"]
+    #predictors["ISBA"] = ["DSN_T_ISBA", "LAI_ga", "TS_ISBA","WSN_T_ISBA"]
+    predictors["ISBA"] = ["LAI_ga", "DSN_T_ISBA", "WSN_T_ISBA"]
     predictors["TG"] = [1, 2]
     predictors["WG"] = [1, 2]
     predictors["WGI"] = [1, 2]
@@ -366,7 +409,7 @@ def main():
     predictors["HSN_VEG"] = [1, 6, 12]
     predictors["SNOWTEMP"] = [1, 6, 12]
     predictors["SNOWLIQ"] = [1, 6, 12]
-
+    
     tt0 = time.time()
     #
     Surfex_coord = get_surfex_coordinates(paths)()
@@ -383,10 +426,11 @@ def main():
                                                               attention_heads = attention_heads)()
     #
     #list_dates = make_list_dates(date_min, date_max)
-    all_dates = pd.date_range(start="2017-06-02", end="2018-05-01", freq='D')
+    all_dates = pd.date_range(start="2014-10-02", end="2014-10-03", freq='D')
     # Filter out the first 10 days of each month
-    filtered_dates = [date for date in all_dates if date.day <= 10] # Validation data
+    #filtered_dates = [date for date in all_dates if date.day <= 10] # Validation data
     #filtered_dates = [date for date in all_dates if date.day > 10] # Training data
+    filtered_dates = [date for date in all_dates] # Test data
 
     # Convert to list of strings for display
     list_dates = [date.strftime('%Y%m%d') for date in filtered_dates]
@@ -398,8 +442,11 @@ def main():
                                                                                 list_predictors = model_params["list_predictors"], 
                                                                                 normalization_stats = normalization_stats,
                                                                                 date_task = date_task,
-                                                                                paths = paths)()
-            #
+                                                                                paths = paths,
+                                                                                mbr = mbr,
+                                                                                n_nodes = n_nodes,
+                                                                                batch_size=batch_size)()
+            
             GNN_model = GNN_GAT(**model_params).to(device)
             GNN_model.load_state_dict(checkpoint["model_state_dict"])
             print("This is the model state: ")
@@ -424,7 +471,8 @@ def main():
                                 list_targets = model_params["list_targets"], 
                                 Targets = Targets, 
                                 Graphs_coord = Graphs_coord, 
-                                predictions = predictions, 
+                                predictions = predictions,
+                                mbr = mbr, 
                                 paths = paths)()
         #except:
         #   pass

@@ -1,19 +1,10 @@
-#!/bin/bash -f
-#$ -N Create_zarr_dataset
-#$ -l h_rt=24:00:00
-#$ -S /bin/bash
-#$ -pe shmem-1 1
-#$ -l h_rss=50G,mem_free=50G,h_data=50G
-#$ -q bigmem-r8.q
-#$ -t 1-1
-##$ -j y
-#$ -m ba
-#$ -o /home/cyrilp/Documents/OUT/OUT_$JOB_NAME.$JOB_ID_$TASK_ID
-#$ -e /home/cyrilp/Documents/ERR/ERR_$JOB_NAME.$JOB_ID_$TASK_ID
-##$ -R y
-##$ -r y
+#!/usr/bin/bash
+#SBATCH --job-name=conv18val
+#SBATCH --qos=nf
+#SBATCH --time=06:00:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100GB
 
-source /modules/rhel8/conda/install/etc/profile.d/conda.sh
-conda activate production-08-2024
+module load python3/3.10.10-01
 
-python3 /lustre/storeB/users/cyrilp/CERISE/Scripts/GNN/Training_data_GNN/Static_graphs/Convert_hdf_to_zarr_static.py
+python3 /perm/sbjb/Projects/CERISE/git/CERISE_obs_op_static-GNN/GNN_static/Training_data/Convert_hdf_to_zarr_static.py
